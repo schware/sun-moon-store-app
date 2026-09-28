@@ -53,9 +53,29 @@ npm run dist           # release/ 에 NSIS 설치 파일. ▶ 코드 서명 없�
 화면 번들은 설치 파일에 같이 들어갑니다(1단계). 두 층 업데이트(서명 검증)는 6단계이고,
 **Device Server 인증을 `enforce` 로 올리기 전에는 자동 업데이트를 켜지 마십시오**(§2.2, §11).
 
+## 원장·프린터 (4·5단계)
+
+- **원장**: `%APPDATA%/SunMoon Store/ledger.sqlite` (`node:sqlite`, WAL). POS·KIOSK 만.
+- **프린터**: ESC/POS over TCP 9100. 프린터는 BO 장비(`RECEIPT_PRINTER` / `LABEL_PRINTER`,
+  IP·포트)이고, 셸은 Device Server 가 알려 준 **이 매장의 프린터로만** 찍습니다.
+  라벨은 KDS-MAIN, 영수증·돈통은 POS·KIOSK.
+
+## 화면 번들 업데이트 (6단계) — **기본값 꺼짐**
+
+켜려면 `SUNMOON_UI_UPDATES=on`. **Device Server 인증을 `enforce` 로 올린 뒤에** 켜십시오(설계 §11).
+
+```bash
+node scripts/keygen.mjs                              # 한 번만 — 개인키는 ~/.sunmoon/ 에
+node scripts/pack-ui.mjs pos 2026.09.28-1            # release/ui-pos-….sunmoonui (+ .sig), checksum 출력
+```
+
+두 파일을 서버 `:8000/releases/ui/` 에 올리고 BO 배포 화면에 `program=ui-pos`, 주소, checksum 을
+등록합니다. 셸은 checksum 과 **서명(공개키는 `src/main/updateKey.ts` 에 박힘)** 을 둘 다 확인한 뒤
+`userData/ui/<화면>.next` 에 풀고, **다음 시작 때** 적용합니다(옛 것은 `.prev`). 적용 30초 안에
+화면이 죽으면 자동으로 되돌리고 FAILED 로 알립니다. 형식은 zip 이 아니라 gzip(JSON) — Node 내장만.
+
 ## 아직 없는 것
 
-- 로컬 원장(SQLite), 거래 전문 결제 — 4단계
-- 영수증·라벨 프린터 — 5단계
-- 업데이트 — 6단계
+- 셸 자체의 자동 업데이트(`electron-updater`) — 코드 서명 인증서가 생긴 뒤(§8.2)
 - KIOSK 화면·관리자 탈출 PIN — 7단계
+- 실물 프린터로의 확인 — 지금까지는 가짜 프린터(TCP)로만

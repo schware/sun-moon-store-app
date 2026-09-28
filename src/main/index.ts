@@ -4,6 +4,8 @@ import { pathToFileURL } from 'node:url'
 import { readConfig } from './config'
 import { registerIpc } from './ipc'
 import { Ledger } from './ledger'
+import * as updater from './updater'
+import { existsSync } from 'node:fs'
 import { contentSecurityPolicy, screenFor } from './roles'
 
 /**
@@ -41,7 +43,10 @@ function resolve(url: URL): string | null {
   const parts = decodeURIComponent(url.pathname).split('/').filter(Boolean)
   if (parts.length === 0) return null
   const [first, ...rest] = parts
-  const root = first === 'setup' ? setupRoot() : path.join(uiRoot(), first)
+  // 받아서 적용한 번들(§8.1)이 있으면 그것이, 없으면 설치 파일에 들어 있던 것.
+  const updated = path.join(updater.updatesRoot(), first)
+  const root = first === 'setup' ? setupRoot()
+    : existsSync(path.join(updated, 'index.html')) ? updated : path.join(uiRoot(), first)
   const file = path.resolve(root, ...(rest.length === 0 ? ['index.html'] : rest))
   if (!file.startsWith(path.resolve(root) + path.sep) && file !== path.resolve(root)) return null
   return file
@@ -111,6 +116,11 @@ function createWindow(): void {
     crashes.push(now)
     while (crashes.length && now - crashes[0] > 60_000) crashes.shift()
     console.error('화면 프로세스가 죽었습니다', details.reason)
+    // 방금 적용한 번들 탓이면 되돌리고 다시 띄웁니다(§8.1 5).
+    if (updater.rollbackIfFresh()) {
+      window?.loadURL(startUrl())
+      return
+    }
     if (crashes.length > 3) {
       void window?.loadURL(`${ORIGIN}/setup/crashed.html`)
       return
@@ -178,6 +188,11 @@ async function smoke(): Promise<void> {
           result.ledgerFile = require('node:fs').existsSync(
             require('node:path').join(app.getPath('userData'), 'ledger.sqlite'))
         }
+        if (paired.device.deviceType === 'KDS' && paired.device.kdsRole === 'MAIN') {
+          // 쌓인 라벨을 찍는 길 — 화면이 셸에 작업 번호만 넘기고, 셸이 프린터를 골라 찍고 ack.
+          result.labels = await probe.webContents.executeJavaScript(
+            'window.sunmoon.printer ? window.sunmoon.printer.queuedLabels() : "no printer bridge"')
+        }
         const { readConfig } = await import('./config')
         const raw = require('node:fs').readFileSync(
           require('node:path').join(app.getPath('userData'), 'config.json'), 'utf8')
@@ -241,8 +256,17 @@ if (!app.requestSingleInstanceLock()) {
       void smoke()
       return
     }
+    // 받아 둔 화면 번들은 시작할 때만 적용합니다 — 영업 중에 화면이 바뀌지 않게(§8.1 3).
+    const screenNow = () => {
+      const config = readConfig()
+      const target = config ? screenFor(config.device) : null
+      return target && 'screen' in target ? target.screen : null
+    }
+    const screen = screenNow()
+    if (screen) updater.applyPending(screen)
     createWindow()
     scheduleDailyReload()
+    updater.startPolling(screenNow)
   })
 
   app.on('window-all-closed', () => app.quit())
