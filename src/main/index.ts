@@ -231,7 +231,7 @@ async function smoke(): Promise<void> {
             if (!admin) {
               result.kioskEscape = { error: '관리자 창이 안 열렸습니다' }
             } else {
-              await new Promise((r) => admin.webContents.once('did-finish-load', r))
+              await new Promise<void>((r) => admin.webContents.once('did-finish-load', () => r()))
               const wrong = await admin.webContents.executeJavaScript('window.sunmoon.kioskAdmin.unlock("0000")')
               const right = await admin.webContents.executeJavaScript(
                 `window.sunmoon.kioskAdmin.unlock(${JSON.stringify(process.env.SUNMOON_SMOKE_PIN)})`)
