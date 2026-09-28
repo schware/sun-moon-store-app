@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>SunMoon Store — 기기 페어링</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="card">
+    <h1>기기 페어링</h1>
+    <p class="muted">
+      BO <strong>장비</strong> 화면에서 이 기기의 <strong>[코드]</strong> 를 눌러 받은 6자리를 넣으십시오.
+      매장·장비 번호·역할(POS / KDS-MAIN)은 BO 에 적힌 대로 정해집니다.
+    </p>
+    <form id="pair">
+      <label for="code">페어링 코드</label>
+      <input id="code" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000000" autofocus />
+      <details>
+        <summary>서버 주소</summary>
+        <input id="server" type="url" spellcheck="false" />
+        <p class="muted small">바꿀 일이 거의 없습니다. 도메인이 생기면 이 값이 바뀝니다.</p>
+      </details>
+      <div id="error" class="error" role="alert" hidden></div>
+      <button id="submit" type="submit">페어링</button>
+    </form>
+    <p class="muted small">
+      KDS SUB 와 DID 는 이 앱이 아니라 웹 화면에서 페어링합니다.
+    </p>
+  </main>
+  <script src="setup.js"></script>
+</body>
+</html>
