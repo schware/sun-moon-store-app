@@ -199,6 +199,27 @@ async function smoke(): Promise<void> {
             payment: await window.sunmoon.payment.approve(1000),
             ledger: typeof window.sunmoon.ledger?.mint === 'function'
           }))()`)
+          if (process.env.SUNMOON_SMOKE_ORDER === '1') {
+            // 손님처럼 누릅니다: 첫 메뉴 → 결제하기 → 끝 화면의 번호.
+            result.kioskOrder = await probe.webContents.executeJavaScript(`(async () => {
+              const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+              const tile = [...document.querySelectorAll('.tile')].find((t) => !t.disabled)
+              if (!tile) return { error: '누를 메뉴가 없습니다', page: document.body.innerText.slice(0, 200) }
+              tile.click()
+              await wait(300)
+              const pay = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('결제하기'))
+              if (!pay) return { error: '결제하기 버튼이 없습니다' }
+              pay.click()
+              for (let i = 0; i < 40 && !document.querySelector('.kiosk-done'); i++) await wait(250)
+              const done = document.querySelector('.kiosk-done')
+              return done
+                ? { number: document.querySelector('.kiosk-done-number')?.textContent, text: done.innerText.slice(0, 160) }
+                : { error: document.querySelector('.error')?.textContent ?? '끝 화면이 안 떴습니다' }
+            })()`)
+            await new Promise((r) => setTimeout(r, 2000))   // 매출 올리기
+            result.kioskLedger = await probe.webContents.executeJavaScript(
+              '(async () => ({ pending: (await window.sunmoon.ledger.pending()).length }))()')
+          }
         }
         if (paired.device.deviceType === 'KDS' && paired.device.kdsRole === 'MAIN') {
           // 쌓인 라벨을 찍는 길 — 화면이 셸에 작업 번호만 넘기고, 셸이 프린터를 골라 찍고 ack.
