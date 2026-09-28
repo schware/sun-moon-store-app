@@ -3,6 +3,7 @@ import * as path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { readConfig } from './config'
 import { registerIpc } from './ipc'
+import { Ledger } from './ledger'
 import { contentSecurityPolicy, screenFor } from './roles'
 
 /**
@@ -73,6 +74,7 @@ function startUrl(): string {
 }
 
 let window: BrowserWindow | null = null
+let ledger: Ledger | null = null
 const crashes: number[] = []
 
 function createWindow(): void {
@@ -164,6 +166,18 @@ async function smoke(): Promise<void> {
           return { storeId: id.storeId, deviceId: id.deviceId, tokenLength: id.token.length,
                    ordersStatus: res.status, ordersOnlyOwnStore: body.every(o => o.storeId === id.storeId) }
         })()`)
+        if (paired.device.deviceType === 'POS') {
+          // 화면이 남의 매장·단말을 적어 보내도 main 이 이 기기의 신원으로 바꾸는지.
+          result.ledger = await probe.webContents.executeJavaScript(`(async () => {
+            const l = window.sunmoon.ledger
+            const row = await l.mint('someone-else', 'pos-99', '2099-01-01', 1)
+            await l.confirm(row.id, { smoke: true })
+            return { tranNo: row.tranNo, storeId: row.storeId, deviceId: row.deviceId,
+                     unsent: await l.unsentCount(), migrated: await l.migrated() }
+          })()`)
+          result.ledgerFile = require('node:fs').existsSync(
+            require('node:path').join(app.getPath('userData'), 'ledger.sqlite'))
+        }
         const { readConfig } = await import('./config')
         const raw = require('node:fs').readFileSync(
           require('node:path').join(app.getPath('userData'), 'config.json'), 'utf8')
@@ -213,6 +227,8 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
     serve()
     registerIpc({
+      // 원장은 처음 쓸 때 엽니다 — KDS-MAIN 셸은 파일을 만들지도 않습니다.
+      ledger: () => (ledger ??= new Ledger(path.join(app.getPath('userData'), 'ledger.sqlite'))),
       defaultServerUrl: DEFAULT_SERVER,
       onPaired: () => window?.loadURL(startUrl()),
       onForgotten: () => window?.loadURL(`${ORIGIN}/setup/index.html`)
@@ -230,4 +246,6 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.on('window-all-closed', () => app.quit())
+  // 원장을 닫고 끝냅니다 — WAL 이 본 파일로 합쳐집니다.
+  app.on('will-quit', () => ledger?.close())
 }

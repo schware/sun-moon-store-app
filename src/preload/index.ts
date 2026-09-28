@@ -20,6 +20,25 @@ const api: Record<string, unknown> = {
   }
 }
 
+// 원장 (§6.1) — POS·KIOSK 로 페어링된 셸에만. 웹 POS 의 IndexedDB 모듈과 같은 이름.
+// 매장·단말 인자는 받되 main 이 이 기기의 신원으로 바꿉니다.
+const deviceType = identity?.deviceType
+if (deviceType === 'POS' || deviceType === 'KIOSK') {
+  api.ledger = {
+    mint: (storeId: string, deviceId: string, businessDate: string, orderId: number) =>
+      ipcRenderer.invoke('ledger:mint', storeId, deviceId, businessDate, orderId),
+    confirm: (id: string, payload: unknown) => ipcRenderer.invoke('ledger:confirm', id, payload),
+    discard: (id: string, reason: string) => ipcRenderer.invoke('ledger:discard', id, reason),
+    pending: () => ipcRenderer.invoke('ledger:pending'),
+    unsentCount: () => ipcRenderer.invoke('ledger:unsentCount'),
+    markSent: (ids: string[]) => ipcRenderer.invoke('ledger:markSent', ids),
+    markFailed: (ids: string[], reason: string) => ipcRenderer.invoke('ledger:markFailed', ids, reason),
+    minted: () => ipcRenderer.invoke('ledger:minted'),
+    migrated: () => ipcRenderer.invoke('ledger:migrated'),
+    importRows: (counters: unknown[], trans: unknown[]) => ipcRenderer.invoke('ledger:import', counters, trans)
+  }
+}
+
 if (location.href.startsWith('sunmoon://app/setup/')) {
   api.setup = {
     defaults: () => ipcRenderer.invoke('setup:defaults'),
