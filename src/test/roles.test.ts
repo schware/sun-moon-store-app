@@ -41,6 +41,8 @@ test('가상 결제는 SMK- 로 시작하고, 이상한 금액은 거절', async
   const ok = virtualApproval(7000, new Date('2026-09-28T03:00:00Z'), () => 0.5)
   assert.equal(ok.approved, true)
   assert.match(ok.approvalNo ?? '', /^SMK-20260928-[0-9A-Z]{6}$/)
+  // UTC 9월 28일 16시 = 서울 9월 29일 새벽 1시 — 서울 날짜로
+  assert.match(virtualApproval(7000, new Date('2026-09-28T16:00:00Z')).approvalNo ?? '', /^SMK-20260929-/)
   assert.equal(virtualApproval(0).approved, false)
   assert.equal(virtualApproval('abc').approved, false)
   assert.equal(virtualApproval(10_000_000).approved, false)

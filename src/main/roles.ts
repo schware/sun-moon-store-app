@@ -58,7 +58,9 @@ export function virtualApproval(amount: unknown, now = new Date(), random = Math
   if (!Number.isFinite(value) || value <= 0 || value >= 10_000_000) {
     return { approved: false, method: 'SUNMOON_PAY', approvalNo: null, amount: 0, message: '결제 금액이 올바르지 않습니다' }
   }
-  const ymd = now.toISOString().slice(0, 10).replace(/-/g, '')
+  // 서울 날짜 — UTC 로 찍으면 자정~오전 9시 승인이 전날 번호가 됩니다.
+  const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' })
+    .format(now).replace(/-/g, '')
   const tail = Math.floor(random() * 36 ** 6).toString(36).toUpperCase().padStart(6, '0')
   return { approved: true, method: 'SUNMOON_PAY', approvalNo: `SMK-${ymd}-${tail}`, amount: value }
 }
