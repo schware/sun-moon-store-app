@@ -39,6 +39,20 @@ if (deviceType === 'POS' || deviceType === 'KIOSK') {
   }
 }
 
+// 프린터 (§6.3, §7). 화면은 작업 번호나 내용만 넘깁니다 — 바이트와 주소는 main 이.
+if (deviceType === 'KDS' && identity?.kdsRole === 'MAIN') {
+  api.printer = {
+    label: (jobId: number) => ipcRenderer.invoke('printer:label', jobId),
+    queuedLabels: () => ipcRenderer.invoke('printer:queuedLabels')
+  }
+}
+if (deviceType === 'POS' || deviceType === 'KIOSK') {
+  api.printer = {
+    receipt: (content: unknown) => ipcRenderer.invoke('printer:receipt', content)
+  }
+  api.drawer = { open: () => ipcRenderer.invoke('drawer:open') }
+}
+
 if (location.href.startsWith('sunmoon://app/setup/')) {
   api.setup = {
     defaults: () => ipcRenderer.invoke('setup:defaults'),

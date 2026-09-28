@@ -2,6 +2,8 @@ import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { forgetConfig, readConfig } from './config'
 import { pair } from './identity'
 import type { CounterRow, Ledger, TranRow } from './ledger'
+import type { ReceiptContent } from './escpos'
+import * as printer from './printer'
 
 /**
  * 화면이 부를 수 있는 채널 — <b>여기 없는 것은 없습니다</b> (store-app.md §2.1).
@@ -25,8 +27,21 @@ export const CHANNELS = {
   ledgerMarkFailed: 'ledger:markFailed',
   ledgerMinted: 'ledger:minted',
   ledgerMigrated: 'ledger:migrated',
-  ledgerImport: 'ledger:import'
+  ledgerImport: 'ledger:import',
+  // 프린터 (§6.3, §7) — 어디로 찍을지는 main 이 정합니다.
+  printerLabel: 'printer:label',
+  printerQueuedLabels: 'printer:queuedLabels',
+  printerReceipt: 'printer:receipt',
+  drawerOpen: 'drawer:open'
 } as const
+
+/** 라벨은 KDS-MAIN (라벨 프린터가 주방의 중심 옆에). 영수증·돈통은 계산대(POS·KIOSK). */
+export function printerAllowed(kind: 'label' | 'receipt', device: { deviceType: string; kdsRole: string | null } | undefined): boolean {
+  if (!device) return false
+  return kind === 'label'
+    ? device.deviceType === 'KDS' && device.kdsRole === 'MAIN'
+    : device.deviceType === 'POS' || device.deviceType === 'KIOSK'
+}
 
 /** 원장을 여는 역할 (§1 표). KDS-MAIN 은 거래를 만들지 않습니다. */
 export function ledgerAllowed(deviceType: string | undefined): boolean {
@@ -74,6 +89,19 @@ export function registerIpc(opts: {
   onLedger<[], boolean>(CHANNELS.ledgerMigrated, (l) => l.migrated())
   onLedger<[CounterRow[], TranRow[]], unknown>(CHANNELS.ledgerImport,
     (l, [counters, trans]) => l.importRows(counters ?? [], trans ?? []))
+
+  const onPrinter = (channel: string, kind: 'label' | 'receipt', work: (...args: unknown[]) => Promise<unknown>) => {
+    ipcMain.handle(channel, (event, ...args: unknown[]) => {
+      if (!fromShell(event) || !printerAllowed(kind, readConfig()?.device)) {
+        throw new Error('이 기기에서는 이 프린터를 쓸 수 없습니다')
+      }
+      return work(...args)
+    })
+  }
+  onPrinter(CHANNELS.printerLabel, 'label', (jobId) => printer.printLabel(Number(jobId)))
+  onPrinter(CHANNELS.printerQueuedLabels, 'label', () => printer.printQueuedLabels())
+  onPrinter(CHANNELS.printerReceipt, 'receipt', (content) => printer.printReceipt(content as ReceiptContent))
+  onPrinter(CHANNELS.drawerOpen, 'receipt', () => printer.openDrawer())
 
   // 신원은 화면이 시작할 때 한 번 동기로 읽습니다(§5.2) — 화면 코드가 비동기
   // 초기화를 기다리지 않고 지금처럼 바로 매장·번호를 알 수 있게.
