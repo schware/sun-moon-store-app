@@ -4,6 +4,7 @@ import { pair } from './identity'
 import type { CounterRow, Ledger, TranRow } from './ledger'
 import type { ReceiptContent } from './escpos'
 import * as printer from './printer'
+import { virtualApproval } from './roles'
 
 /**
  * 화면이 부를 수 있는 채널 — <b>여기 없는 것은 없습니다</b> (store-app.md §2.1).
@@ -32,7 +33,9 @@ export const CHANNELS = {
   printerLabel: 'printer:label',
   printerQueuedLabels: 'printer:queuedLabels',
   printerReceipt: 'printer:receipt',
-  drawerOpen: 'drawer:open'
+  drawerOpen: 'drawer:open',
+  // KIOSK 결제 (§9) — 그 전까지 썬앤문페이(가상).
+  paymentApprove: 'payment:approve'
 } as const
 
 /** 라벨은 KDS-MAIN (라벨 프린터가 주방의 중심 옆에). 영수증·돈통은 계산대(POS·KIOSK). */
@@ -102,6 +105,13 @@ export function registerIpc(opts: {
   onPrinter(CHANNELS.printerQueuedLabels, 'label', () => printer.printQueuedLabels())
   onPrinter(CHANNELS.printerReceipt, 'receipt', (content) => printer.printReceipt(content as ReceiptContent))
   onPrinter(CHANNELS.drawerOpen, 'receipt', () => printer.openDrawer())
+
+  ipcMain.handle(CHANNELS.paymentApprove, (event, amount: unknown) => {
+    if (!fromShell(event) || readConfig()?.device.deviceType !== 'KIOSK') {
+      throw new Error('KIOSK 만 결제를 받습니다')
+    }
+    return virtualApproval(amount)
+  })
 
   // 신원은 화면이 시작할 때 한 번 동기로 읽습니다(§5.2) — 화면 코드가 비동기
   // 초기화를 기다리지 않고 지금처럼 바로 매장·번호를 알 수 있게.

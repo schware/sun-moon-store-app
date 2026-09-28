@@ -6,7 +6,7 @@ import { registerIpc } from './ipc'
 import { Ledger } from './ledger'
 import * as updater from './updater'
 import { existsSync } from 'node:fs'
-import { contentSecurityPolicy, screenFor } from './roles'
+import { contentSecurityPolicy, folderFor, screenFor, urlPrefix } from './roles'
 
 /**
  * 매장 단말 셸 (umbrella docs/design/store-app.md §5, ADR-0015).
@@ -42,7 +42,8 @@ function setupRoot(): string {
 function resolve(url: URL): string | null {
   const parts = decodeURIComponent(url.pathname).split('/').filter(Boolean)
   if (parts.length === 0) return null
-  const [first, ...rest] = parts
+  const [prefix, ...rest] = parts
+  const first = folderFor(prefix)
   // 받아서 적용한 번들(§8.1)이 있으면 그것이, 없으면 설치 파일에 들어 있던 것.
   const updated = path.join(updater.updatesRoot(), first)
   const root = first === 'setup' ? setupRoot()
@@ -75,7 +76,7 @@ function startUrl(): string {
   const config = readConfig()
   if (config === null) return `${ORIGIN}/setup/index.html`
   const target = screenFor(config.device)
-  return 'screen' in target ? `${ORIGIN}/${target.screen}/index.html` : `${ORIGIN}/setup/index.html`
+  return 'screen' in target ? `${ORIGIN}/${urlPrefix(target.screen)}/index.html` : `${ORIGIN}/setup/index.html`
 }
 
 let window: BrowserWindow | null = null
@@ -187,6 +188,17 @@ async function smoke(): Promise<void> {
           })()`)
           result.ledgerFile = require('node:fs').existsSync(
             require('node:path').join(app.getPath('userData'), 'ledger.sqlite'))
+        }
+        if (paired.device.deviceType === 'KIOSK') {
+          await probe.loadURL(startUrl())
+          await new Promise((r) => setTimeout(r, 3000))   // 메뉴판을 읽을 시간
+          result.kiosk = await probe.webContents.executeJavaScript(`(async () => ({
+            url: location.pathname,
+            kioskMode: document.querySelector('[data-kind="kiosk"]') !== null,
+            tiles: document.querySelectorAll('.tile').length,
+            payment: await window.sunmoon.payment.approve(1000),
+            ledger: typeof window.sunmoon.ledger?.mint === 'function'
+          }))()`)
         }
         if (paired.device.deviceType === 'KDS' && paired.device.kdsRole === 'MAIN') {
           // 쌓인 라벨을 찍는 길 — 화면이 셸에 작업 번호만 넘기고, 셸이 프린터를 골라 찍고 ack.

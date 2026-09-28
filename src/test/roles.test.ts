@@ -27,3 +27,21 @@ test('CSP 는 스크립트를 셸 안으로, 연결을 Device Server 로 묶는�
   assert.doesNotMatch(csp, /unsafe-eval/)
   assert.match(contentSecurityPolicy(null), /connect-src 'self'(;|$)/)
 })
+
+test('KIOSK 는 손님 화면을 /channel-order/ 주소로, ui/kiosk 에서', async () => {
+  const { urlPrefix, folderFor, screenFor } = await import('../main/roles')
+  assert.deepEqual(screenFor({ storeId: 's', deviceId: 'k', deviceType: 'KIOSK', kdsRole: null }), { screen: 'kiosk' })
+  assert.equal(urlPrefix('kiosk'), 'channel-order')
+  assert.equal(folderFor('channel-order'), 'kiosk')
+  assert.equal(folderFor('pos'), 'pos')
+})
+
+test('가상 결제는 SMK- 로 시작하고, 이상한 금액은 거절', async () => {
+  const { virtualApproval } = await import('../main/roles')
+  const ok = virtualApproval(7000, new Date('2026-09-28T03:00:00Z'), () => 0.5)
+  assert.equal(ok.approved, true)
+  assert.match(ok.approvalNo ?? '', /^SMK-20260928-[0-9A-Z]{6}$/)
+  assert.equal(virtualApproval(0).approved, false)
+  assert.equal(virtualApproval('abc').approved, false)
+  assert.equal(virtualApproval(10_000_000).approved, false)
+})

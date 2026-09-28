@@ -35,6 +35,35 @@ export function screenFor(device: Device): { screen: Screen } | { refused: strin
 }
 
 /**
+ * 화면의 주소 첫 칸. 번들은 자기 base 로 빌드돼 있어서(POS /pos/, KDS /kds/, 손님 화면
+ * /channel-order/) 주소도 그것을 따라야 자산이 제자리에서 풀립니다. KIOSK 는 손님 화면을
+ * 그대로 쓰므로 주소는 /channel-order/, 디스크의 자리는 ui/kiosk 입니다.
+ */
+export function urlPrefix(screen: Screen): string {
+  return screen === 'kiosk' ? 'channel-order' : screen
+}
+
+/** 주소 첫 칸 → ui/ 아래 폴더. */
+export function folderFor(prefix: string): string {
+  return prefix === 'channel-order' ? 'kiosk' : prefix
+}
+
+/**
+ * KIOSK 결제 — ▶ 기본값 썬앤문페이(가상) (store-app.md §9). VAN 이 정해지면 이 자리가
+ * VAN 호출로 바뀝니다. 가상 승인번호는 SMK- 로 시작해서 진짜 승인과 섞이지 않습니다.
+ */
+export function virtualApproval(amount: unknown, now = new Date(), random = Math.random):
+  { approved: boolean; method: string; approvalNo: string | null; amount: number; message?: string } {
+  const value = Number(amount)
+  if (!Number.isFinite(value) || value <= 0 || value >= 10_000_000) {
+    return { approved: false, method: 'SUNMOON_PAY', approvalNo: null, amount: 0, message: '결제 금액이 올바르지 않습니다' }
+  }
+  const ymd = now.toISOString().slice(0, 10).replace(/-/g, '')
+  const tail = Math.floor(random() * 36 ** 6).toString(36).toUpperCase().padStart(6, '0')
+  return { approved: true, method: 'SUNMOON_PAY', approvalNo: `SMK-${ymd}-${tail}`, amount: value }
+}
+
+/**
  * 서버 주소는 http(s) 이고 경로가 없어야 합니다. 설정 화면에서 사람이 치는 값이라
  * 끝의 / 같은 것은 흘려 넘기고, 모양이 틀리면 저장하지 않습니다.
  */

@@ -53,6 +53,11 @@ if (deviceType === 'POS' || deviceType === 'KIOSK') {
   api.drawer = { open: () => ipcRenderer.invoke('drawer:open') }
 }
 
+// KIOSK 결제 (§9). 그 전까지 썬앤문페이(가상) — VAN 이 정해지면 main 만 바뀝니다.
+if (deviceType === 'KIOSK') {
+  api.payment = { approve: (amount: number) => ipcRenderer.invoke('payment:approve', amount) }
+}
+
 if (location.href.startsWith('sunmoon://app/setup/')) {
   api.setup = {
     defaults: () => ipcRenderer.invoke('setup:defaults'),

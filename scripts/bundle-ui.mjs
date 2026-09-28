@@ -8,14 +8,16 @@ import path from 'node:path'
 
 const root = process.env.SUNMOON_TERMINALS ?? path.resolve('..')
 const screens = {
-  pos: 'sun-moon-terminal-pos',
-  kds: 'sun-moon-terminal-kds'
-  // kiosk: 7단계 — channel-order/frontend
+  pos: path.join(root, 'sun-moon-terminal-pos', 'dist'),
+  kds: path.join(root, 'sun-moon-terminal-kds', 'dist'),
+  // KIOSK 는 손님 화면(channel-order frontend)을 그대로 씁니다 — 그 빌드는 Spring 의 static 으로 나옵니다.
+  kiosk: process.env.SUNMOON_KIOSK_DIST ?? path.resolve(root, '..', 'Java-Platform',
+    'sun-moon-java-platform-channel-order', 'src', 'main', 'resources', 'static')
 }
 
 let missing = 0
-for (const [screen, repo] of Object.entries(screens)) {
-  const dist = path.join(root, repo, 'dist')
+for (const [screen, dist] of Object.entries(screens)) {
+
   const target = path.join('ui', screen)
   if (!existsSync(path.join(dist, 'index.html'))) {
     console.warn(`건너뜀: ${screen} — ${dist} 에 빌드가 없습니다 (그 저장소에서 npm run build)`)
@@ -25,6 +27,6 @@ for (const [screen, repo] of Object.entries(screens)) {
   rmSync(target, { recursive: true, force: true })
   mkdirSync(target, { recursive: true })
   cpSync(dist, target, { recursive: true })
-  console.log(`${repo}/dist → ui/${screen}`)
+  console.log(`${dist} → ui/${screen}`)
 }
 if (missing > 0) process.exitCode = 1
