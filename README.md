@@ -50,6 +50,12 @@ SUNMOON_SMOKE=1 SUNMOON_SMOKE_CODE=123456 SUNMOON_USER_DATA=/tmp/shell-test npx 
 npm run dist           # release/ 에 NSIS 설치 파일. ▶ 코드 서명 없음(시연 단계)
 ```
 
+결과는 `release/SunMoon Store Setup <버전>.exe` (약 115MB, 서명 없음). 2026-09-29 에 만들어
+`release/win-unpacked` 를 창 없는 점검으로 돌려 봤습니다 — 셋업·POS·KDS 화면이 `resources/ui` 에서 뜨고
+외부 연결은 막힙니다. `win.signAndEditExecutable: false` 는 **코드 서명 인증서가 없어서**입니다: 켜 두면
+electron-builder 가 winCodeSign 을 풀다가 Windows 심볼릭 링크 권한(개발자 모드·관리자)이 없어 멈춥니다.
+인증서가 생기면 되돌리십시오.
+
 화면 번들은 설치 파일에 같이 들어갑니다(1단계). 두 층 업데이트(서명 검증)는 6단계이고,
 **Device Server 인증을 `enforce` 로 올리기 전에는 자동 업데이트를 켜지 마십시오**(§2.2, §11).
 
