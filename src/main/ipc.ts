@@ -1,6 +1,7 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { forgetConfig, readConfig } from './config'
 import { pair } from './identity'
+import { unlockKiosk } from './kioskUnlock'
 import type { CounterRow, Ledger, TranRow } from './ledger'
 import type { ReceiptContent } from './escpos'
 import * as printer from './printer'
@@ -35,8 +36,17 @@ export const CHANNELS = {
   printerReceipt: 'printer:receipt',
   drawerOpen: 'drawer:open',
   // KIOSK 결제 (§9) — 그 전까지 썬앤문페이(가상).
-  paymentApprove: 'payment:approve'
+  paymentApprove: 'payment:approve',
+  // KIOSK 관리자 탈출 (§5.3): 구석 5번 → 관리자 창 → PIN(서버가 확인) → 동작
+  kioskEscape: 'kiosk:escape',
+  kioskUnlock: 'kiosk:unlock',
+  kioskAct: 'kiosk:act'
 } as const
+
+/** 관리자 창에서 온 것인가 — PIN·동작 채널은 이 창만 받습니다. */
+function fromUnlock(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
+  return event.senderFrame?.url?.startsWith('sunmoon://app/setup/unlock.html') === true
+}
 
 /** 라벨은 KDS-MAIN (라벨 프린터가 주방의 중심 옆에). 영수증·돈통은 계산대(POS·KIOSK). */
 export function printerAllowed(kind: 'label' | 'receipt', device: { deviceType: string; kdsRole: string | null } | undefined): boolean {
@@ -65,7 +75,42 @@ export function registerIpc(opts: {
   onPaired: () => void
   onForgotten: () => void
   ledger: () => Ledger
+  kiosk: {
+    openAdmin: () => void
+    closeAdmin: () => void
+    windowMode: () => void
+    quit: () => void
+  }
 }): void {
+  // KIOSK 관리자 탈출. 잠금은 PIN 이 맞은 뒤 2분만 풀립니다.
+  let unlockedUntil = 0
+  const isKiosk = () => readConfig()?.device.deviceType === 'KIOSK'
+  ipcMain.on(CHANNELS.kioskEscape, (event) => {
+    if (fromShell(event) && isKiosk()) opts.kiosk.openAdmin()
+  })
+  ipcMain.handle(CHANNELS.kioskUnlock, async (event, pin: unknown) => {
+    if (!fromUnlock(event) || !isKiosk()) return { ok: false, error: '관리자 창에서만' }
+    const result = await unlockKiosk(String(pin ?? ''))
+    if (result.ok) unlockedUntil = Date.now() + 2 * 60_000
+    return result
+  })
+  ipcMain.handle(CHANNELS.kioskAct, (event, act: unknown) => {
+    if (!fromUnlock(event) || !isKiosk()) return { error: '관리자 창에서만' }
+    if (act === 'back') {
+      opts.kiosk.closeAdmin()
+      return {}
+    }
+    if (Date.now() > unlockedUntil) return { error: '잠금이 다시 걸렸습니다 — PIN 을 다시 넣으십시오' }
+    opts.kiosk.closeAdmin()
+    if (act === 'window') opts.kiosk.windowMode()
+    else if (act === 'quit') opts.kiosk.quit()
+    else if (act === 'forget') {
+      forgetConfig()
+      opts.onForgotten()
+    }
+    return {}
+  })
+
   // 원장 채널: 셸 화면에서, POS·KIOSK 로 페어링된 기기일 때만. 매장·단말은 화면이
   // 보낸 값이 아니라 <b>이 기기의 신원</b>으로 바꿉니다 — 화면이 다른 단말 행세를
   // 해서 남의 번호를 끊을 수 없게.

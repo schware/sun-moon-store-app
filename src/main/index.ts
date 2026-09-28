@@ -80,6 +80,27 @@ function startUrl(): string {
 }
 
 let window: BrowserWindow | null = null
+let adminWindow: BrowserWindow | null = null
+
+/** KIOSK 관리자 창 (§5.3) — 같은 가두기 설정의 작은 모달. */
+function openAdmin(): void {
+  if (adminWindow || !window) {
+    adminWindow?.focus()
+    return
+  }
+  adminWindow = new BrowserWindow({
+    parent: window, modal: true, width: 480, height: 560, resizable: false,
+    minimizable: false, maximizable: false, autoHideMenuBar: true, backgroundColor: '#111418',
+    webPreferences: {
+      contextIsolation: true, nodeIntegration: false, sandbox: true, webviewTag: false,
+      preload: path.join(__dirname, '..', 'preload', 'index.js')
+    }
+  })
+  adminWindow.webContents.on('will-navigate', (event) => event.preventDefault())
+  adminWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  adminWindow.on('closed', () => { adminWindow = null })
+  void adminWindow.loadURL(`${ORIGIN}/setup/unlock.html`)
+}
 let ledger: Ledger | null = null
 const crashes: number[] = []
 
@@ -199,6 +220,25 @@ async function smoke(): Promise<void> {
             payment: await window.sunmoon.payment.approve(1000),
             ledger: typeof window.sunmoon.ledger?.mint === 'function'
           }))()`)
+          if (process.env.SUNMOON_SMOKE_PIN) {
+            // 관리자 탈출: 구석을 5번 → 관리자 창 → 틀린 PIN → 맞는 PIN → 창 모드
+            window = probe
+            await probe.webContents.executeJavaScript(`(() => {
+              for (let i = 0; i < 5; i++) window.dispatchEvent(new PointerEvent('pointerdown', { clientX: 10, clientY: 10 }))
+            })()`)
+            for (let i = 0; i < 20 && !adminWindow; i++) await new Promise((r) => setTimeout(r, 100))
+            const admin = adminWindow as BrowserWindow | null
+            if (!admin) {
+              result.kioskEscape = { error: '관리자 창이 안 열렸습니다' }
+            } else {
+              await new Promise((r) => admin.webContents.once('did-finish-load', r))
+              const wrong = await admin.webContents.executeJavaScript('window.sunmoon.kioskAdmin.unlock("0000")')
+              const right = await admin.webContents.executeJavaScript(
+                `window.sunmoon.kioskAdmin.unlock(${JSON.stringify(process.env.SUNMOON_SMOKE_PIN)})`)
+              const act = await admin.webContents.executeJavaScript('window.sunmoon.kioskAdmin.act("window")')
+              result.kioskEscape = { opened: true, wrong, right, act, adminClosed: adminWindow === null }
+            }
+          }
           if (process.env.SUNMOON_SMOKE_ORDER === '1') {
             // 손님처럼 누릅니다: 첫 메뉴 → 결제하기 → 끝 화면의 번호.
             result.kioskOrder = await probe.webContents.executeJavaScript(`(async () => {
@@ -279,7 +319,16 @@ if (!app.requestSingleInstanceLock()) {
       ledger: () => (ledger ??= new Ledger(path.join(app.getPath('userData'), 'ledger.sqlite'))),
       defaultServerUrl: DEFAULT_SERVER,
       onPaired: () => window?.loadURL(startUrl()),
-      onForgotten: () => window?.loadURL(`${ORIGIN}/setup/index.html`)
+      onForgotten: () => window?.loadURL(`${ORIGIN}/setup/index.html`),
+      kiosk: {
+        openAdmin,
+        closeAdmin: () => { adminWindow?.close() },
+        windowMode: () => {
+          window?.setKiosk(false)
+          window?.setFullScreen(false)
+        },
+        quit: () => app.quit()
+      }
     })
     if (app.isPackaged) {
       // Windows 로그인 시 자동 시작 (§5.3).

@@ -56,6 +56,27 @@ if (deviceType === 'POS' || deviceType === 'KIOSK') {
 // KIOSK 결제 (§9). 그 전까지 썬앤문페이(가상) — VAN 이 정해지면 main 만 바뀝니다.
 if (deviceType === 'KIOSK') {
   api.payment = { approve: (amount: number) => ipcRenderer.invoke('payment:approve', amount) }
+
+  // 관리자 탈출 (§5.3): 왼쪽 위 구석(80px)을 3초 안에 5번. 화면 코드는 모릅니다 — 셸이 듣습니다.
+  if (!location.href.startsWith('sunmoon://app/setup/')) {
+    let taps: number[] = []
+    window.addEventListener('pointerdown', (e) => {
+      if (e.clientX > 80 || e.clientY > 80) return
+      const now = Date.now()
+      taps = [...taps.filter((t) => now - t < 3000), now]
+      if (taps.length >= 5) {
+        taps = []
+        ipcRenderer.send('kiosk:escape')
+      }
+    }, true)
+  }
+}
+
+if (location.href.startsWith('sunmoon://app/setup/unlock.html')) {
+  api.kioskAdmin = {
+    unlock: (pin: string) => ipcRenderer.invoke('kiosk:unlock', pin),
+    act: (act: string) => ipcRenderer.invoke('kiosk:act', act)
+  }
 }
 
 if (location.href.startsWith('sunmoon://app/setup/')) {

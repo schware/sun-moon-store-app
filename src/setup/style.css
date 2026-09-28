@@ -33,3 +33,6 @@ button:disabled { opacity: 0.6; cursor: default; }
   margin-top: 14px; padding: 10px 12px; border-radius: 8px; color: var(--danger);
   background: rgba(255, 107, 107, 0.08); border: 1px solid rgba(255, 107, 107, 0.25);
 }
+button.secondary { background: transparent; border: 1px solid #333b46; color: var(--muted); }
+button.danger { background: var(--danger); }
+#actions button { display: block; }
