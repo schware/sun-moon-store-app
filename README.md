@@ -1,15 +1,16 @@
 # sun-moon-store-app
 
-매장 단말 셸 — **POS · KDS-MAIN** (KIOSK 는 7단계). Electron.
+매장 단말 셸 — **POS · KIOSK · KDS-MAIN**. Electron.
 
 설계: umbrella `sun-moon-java-platform/docs/design/store-app.md` §5, ADR-0015.
 셸은 **하드웨어가 있는 자리**에만 갑니다. KDS SUB 와 DID 는 웹 화면 그대로입니다.
 
 ## 하는 일
 
-- **페어링** — BO 장비 화면의 6자리 코드. 토큰은 main 프로세스가 받아
-  `safeStorage`(Windows DPAPI)로 암호화해 `%APPDATA%/SunMoon Store/config.json` 에 둡니다.
-- **역할의 화면 열기** — POS → `ui/pos`, KDS-MAIN → `ui/kds`. 화면은
+- **단말 등록** — 첫 실행 때 매장 ID·장비 ID·하는 일(POS / KIOSK / KDS 메인)을 넣습니다. 웹
+  단말의 단말 등록과 같은 값이고 `%APPDATA%/SunMoon Store/config.json` 에 둡니다. 토큰은 없습니다
+  (2026-10-01 Sun&Moon 결정 — 페어링을 걷어냄). 장비는 BO 장비 화면에 등록돼 있어야 연결됩니다.
+- **역할의 화면 열기** — POS → `ui/pos`, KIOSK → `ui/kiosk`, KDS-MAIN → `ui/kds`. 화면은
   `sunmoon://app/<화면>/` 으로 엽니다(번들이 `/pos/assets/…` 절대 경로로 빌드돼 있어서).
 - **늘 켜져 있기** — Windows 로그인 시 시작, 화면이 죽으면 다시 띄움(1분에 3번 넘으면
   멈추고 알림), 새벽 4시에 화면 새로 띄움, 두 번 켜면 첫 창으로.
@@ -17,8 +18,8 @@
   셸 밖으로 이동·새 창 금지, CSP(스크립트는 셸 안, 연결은 Device Server 한 곳), 권한 요청 전부 거절.
   화면에 여는 것은 `window.sunmoon` 하나이고, 채널은 `src/main/ipc.ts` 의 목록뿐입니다.
 
-화면 코드는 셸이 있든 없든 돕니다 — `window.sunmoon` 이 있으면 셸의 신원과 서버 주소를,
-없으면 웹 방식(자기 페어링 화면)을 씁니다(`src/lib/pairing.ts`, 세 단말 저장소에 같은 복사본).
+화면 코드는 셸이 있든 없든 돕니다 — `window.sunmoon` 이 있으면 셸에 등록된 매장·장비와 서버
+주소를, 없으면 화면의 단말 등록을 씁니다(`src/lib/shell.ts`, POS·KDS 저장소에 같은 복사본).
 
 ## 개발
 
@@ -35,14 +36,13 @@ SUNMOON_WINDOWED=1 npm start   # 창으로 띄우기 (기본은 전체 화면)
 SUNMOON_SMOKE=1 npx electron .
 ```
 
-코드까지 주면 진짜로 페어링하고, 화면이 그 토큰으로 Device Server 를 부르는지 봅니다.
-개발 PC 의 설정을 건드리지 않게 **반드시 따로 쓸 폴더**와 함께, 시험 매장의 코드로:
+매장·장비까지 주면 설정 화면처럼 등록하고, 화면이 그 값으로 Device Server 를 부르는지 봅니다.
+개발 PC 의 설정을 건드리지 않게 **반드시 따로 쓸 폴더**와 함께, 시험 매장으로
+(KIOSK 면 `SUNMOON_SMOKE_PIN`·`SUNMOON_SMOKE_ORDER=1` 도):
 
 ```bash
-SUNMOON_SMOKE=1 SUNMOON_SMOKE_CODE=123456 SUNMOON_USER_DATA=/tmp/shell-test npx electron .
+SUNMOON_SMOKE=1 SUNMOON_SMOKE_DEVICE=test-pair/tp-kiosk/KIOSK SUNMOON_USER_DATA=/tmp/shell-test npx electron .
 ```
-
-끝나면 서버의 시험 자격을 지우십시오(BO 장비 화면 [해제], 또는 시험 매장 행 삭제).
 
 ## 설치 파일
 

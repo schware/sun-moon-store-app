@@ -8,12 +8,12 @@ import { readConfig } from './config'
  */
 export async function unlockKiosk(pin: string): Promise<{ ok: boolean; error?: string }> {
   const config = readConfig()
-  if (!config) return { ok: false, error: '페어링되지 않은 기기입니다' }
+  if (!config) return { ok: false, error: '매장·장비가 설정되지 않은 기기입니다' }
   try {
     const res = await net.fetch(`${config.serverUrl}/pos/kiosk/unlock`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Device ${config.token}` },
-      body: JSON.stringify({ pin })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ storeId: config.device.storeId, deviceId: config.device.deviceId, pin })
     })
     const body = await res.json().catch(() => ({})) as { ok?: boolean; error?: string }
     return res.ok && body.ok ? { ok: true } : { ok: false, error: body.error ?? `확인하지 못했습니다 (${res.status})` }

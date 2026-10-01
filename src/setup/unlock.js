@@ -35,7 +35,7 @@
   for (const button of actions.querySelectorAll('button[data-act]')) {
     button.addEventListener('click', async () => {
       const act = button.getAttribute('data-act')
-      if (act === 'forget' && !confirm('이 KIOSK 의 페어링을 지웁니다. BO 에서 코드를 새로 받아야 합니다.')) return
+      if (act === 'forget' && !confirm('이 KIOSK 의 매장·장비 설정을 지웁니다. 설정 화면으로 돌아갑니다.')) return
       const result = await admin.act(act)
       if (result && result.error) show(result.error)
     })

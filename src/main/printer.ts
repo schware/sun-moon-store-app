@@ -20,12 +20,12 @@ export interface Printer {
   port: number
 }
 
+/** Device Server 의 프린터·라벨 주소. 이 기기의 매장을 붙여 부릅니다 — 그 매장 것만 보입니다. */
 async function api(path: string, init?: RequestInit): Promise<Response> {
   const config = readConfig()
-  if (!config) throw new Error('페어링되지 않은 기기입니다')
-  const headers = new Headers(init?.headers)
-  headers.set('Authorization', `Device ${config.token}`)
-  return net.fetch(`${config.serverUrl}${path}`, { ...init, headers })
+  if (!config) throw new Error('매장·장비가 설정되지 않은 기기입니다')
+  const join = path.includes('?') ? '&' : '?'
+  return net.fetch(`${config.serverUrl}${path}${join}storeId=${encodeURIComponent(config.device.storeId)}`, init)
 }
 
 async function printers(): Promise<Printer[]> {

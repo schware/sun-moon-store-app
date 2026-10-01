@@ -15,12 +15,12 @@ const api: Record<string, unknown> = {
   shell: { version: '0.1.0' },
   identity: {
     get: () => identity,
-    /** 이 기기의 페어링을 지우고 셋업 화면으로. */
+    /** 이 기기의 단말 등록을 지우고 셋업 화면으로. */
     forget: () => ipcRenderer.invoke('identity:forget')
   }
 }
 
-// 원장 (§6.1) — POS·KIOSK 로 페어링된 셸에만. 웹 POS 의 IndexedDB 모듈과 같은 이름.
+// 원장 (§6.1) — POS·KIOSK 로 등록된 셸에만. 웹 POS 의 IndexedDB 모듈과 같은 이름.
 // 매장·단말 인자는 받되 main 이 이 기기의 신원으로 바꿉니다.
 const deviceType = identity?.deviceType
 if (deviceType === 'POS' || deviceType === 'KIOSK') {
@@ -82,7 +82,8 @@ if (location.href.startsWith('sunmoon://app/setup/unlock.html')) {
 if (location.href.startsWith('sunmoon://app/setup/')) {
   api.setup = {
     defaults: () => ipcRenderer.invoke('setup:defaults'),
-    pair: (serverUrl: string, code: string) => ipcRenderer.invoke('setup:pair', serverUrl, code)
+    save: (serverUrl: string, storeId: string, deviceId: string, kind: string) =>
+      ipcRenderer.invoke('setup:save', serverUrl, storeId, deviceId, kind)
   }
 }
 

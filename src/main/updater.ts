@@ -38,10 +38,8 @@ let promotedAt: { screen: string; version: string; at: number } | null = null
 
 async function api(p: string, init?: RequestInit): Promise<Response> {
   const config = readConfig()
-  if (!config) throw new Error('페어링되지 않은 기기입니다')
-  const headers = new Headers(init?.headers)
-  headers.set('Authorization', `Device ${config.token}`)
-  return net.fetch(`${config.serverUrl}${p}`, { ...init, headers })
+  if (!config) throw new Error('매장·장비가 설정되지 않은 기기입니다')
+  return net.fetch(`${config.serverUrl}${p}`, init)
 }
 
 async function ack(screen: string, version: string, status: 'DOWNLOADED' | 'INSTALLED' | 'FAILED', message?: string) {

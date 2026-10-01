@@ -1,6 +1,6 @@
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 import { forgetConfig, readConfig } from './config'
-import { pair } from './identity'
+import { register } from './identity'
 import { unlockKiosk } from './kioskUnlock'
 import type { CounterRow, Ledger, TranRow } from './ledger'
 import type { ReceiptContent } from './escpos'
@@ -17,7 +17,7 @@ import { virtualApproval } from './roles'
 export const CHANNELS = {
   identityGet: 'identity:get',
   identityForget: 'identity:forget',
-  setupPair: 'setup:pair',
+  setupSave: 'setup:save',
   setupDefaults: 'setup:defaults',
   // 원장 (§6.1) — POS·KIOSK 만. 함수 이름은 웹 POS 의 IndexedDB 모듈과 같습니다.
   ledgerMint: 'ledger:mint',
@@ -61,7 +61,7 @@ export function ledgerAllowed(deviceType: string | undefined): boolean {
   return deviceType === 'POS' || deviceType === 'KIOSK'
 }
 
-/** 셋업 화면 밖에서는 페어링 채널을 안 받습니다. 화면을 가리는 것은 보낸 쪽의 주소입니다. */
+/** 셋업 화면 밖에서는 설정 채널을 안 받습니다. 화면을 가리는 것은 보낸 쪽의 주소입니다. */
 function fromSetup(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   return event.senderFrame?.url?.startsWith('sunmoon://app/setup/') === true
 }
@@ -72,7 +72,7 @@ function fromShell(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
 
 export function registerIpc(opts: {
   defaultServerUrl: string
-  onPaired: () => void
+  onConfigured: () => void
   onForgotten: () => void
   ledger: () => Ledger
   kiosk: {
@@ -111,7 +111,7 @@ export function registerIpc(opts: {
     return {}
   })
 
-  // 원장 채널: 셸 화면에서, POS·KIOSK 로 페어링된 기기일 때만. 매장·단말은 화면이
+  // 원장 채널: 셸 화면에서, POS·KIOSK 로 등록된 기기일 때만. 매장·단말은 화면이
   // 보낸 값이 아니라 <b>이 기기의 신원</b>으로 바꿉니다 — 화면이 다른 단말 행세를
   // 해서 남의 번호를 끊을 수 없게.
   const onLedger = <A extends unknown[], R>(channel: string, work: (l: Ledger, a: A) => R) => {
@@ -168,7 +168,6 @@ export function registerIpc(opts: {
     const config = readConfig()
     event.returnValue = config === null ? null : {
       ...config.device,
-      token: config.token,
       serverUrl: config.serverUrl
     }
   })
@@ -185,10 +184,10 @@ export function registerIpc(opts: {
     return { serverUrl: opts.defaultServerUrl }
   })
 
-  ipcMain.handle(CHANNELS.setupPair, async (event, serverUrl: unknown, code: unknown) => {
-    if (!fromSetup(event)) return { ok: false, error: '셋업 화면에서만 페어링합니다' }
-    const result = await pair(String(serverUrl ?? ''), String(code ?? ''))
-    if (result.ok) opts.onPaired()
+  ipcMain.handle(CHANNELS.setupSave, (event, serverUrl: unknown, storeId: unknown, deviceId: unknown, kind: unknown) => {
+    if (!fromSetup(event)) return { ok: false, error: '설정 화면에서만 정합니다' }
+    const result = register(String(serverUrl ?? ''), String(storeId ?? ''), String(deviceId ?? ''), String(kind ?? ''))
+    if (result.ok) opts.onConfigured()
     return result
   })
 }

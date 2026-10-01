@@ -1,7 +1,9 @@
-// 셸의 셋업 화면. 토큰은 여기서 보지 않습니다 — main 이 받아 암호화해 둡니다.
+// 셸의 설정 화면 — 매장·장비·하는 일을 정합니다. 저장은 main 이 합니다.
 (async () => {
-  const form = document.getElementById('pair')
-  const code = document.getElementById('code')
+  const form = document.getElementById('register')
+  const kind = document.getElementById('kind')
+  const store = document.getElementById('store')
+  const device = document.getElementById('device')
   const server = document.getElementById('server')
   const error = document.getElementById('error')
   const submit = document.getElementById('submit')
@@ -20,20 +22,18 @@
     event.preventDefault()
     error.hidden = true
     submit.disabled = true
-    submit.textContent = '확인 중…'
     try {
-      const result = await setup.pair(server.value, code.value)
+      const result = await setup.save(server.value, store.value, device.value, kind.value)
       if (!result.ok) {
         error.textContent = result.error
         error.hidden = false
       }
-      // 성공하면 main 이 역할의 화면을 엽니다.
+      // 성공하면 main 이 그 일의 화면을 엽니다.
     } catch (e) {
-      error.textContent = '페어링하지 못했습니다'
+      error.textContent = '저장하지 못했습니다'
       error.hidden = false
     } finally {
       submit.disabled = false
-      submit.textContent = '페어링'
     }
   })
 })()

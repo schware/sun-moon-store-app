@@ -11,7 +11,7 @@ import { contentSecurityPolicy, folderFor, screenFor, urlPrefix } from './roles'
 /**
  * 매장 단말 셸 (umbrella docs/design/store-app.md §5, ADR-0015).
  *
- * <p>하는 일은 넷입니다: 페어링, 역할의 화면 열기, 늘 켜져 있기, 화면을 가두기.
+ * <p>하는 일은 넷입니다: 단말 등록, 역할의 화면 열기, 늘 켜져 있기, 화면을 가두기.
  * 네이티브 기능(원장·프린터·업데이트)은 4~6단계에서 여기에 붙습니다.
  */
 
@@ -183,22 +183,22 @@ async function smoke(): Promise<void> {
   })
   const result: Record<string, unknown> = {}
   try {
-    // 코드가 주어지면 진짜로 페어링하고, 화면이 그 신원으로 Device Server 를 부르는지까지 봅니다.
-    if (process.env.SUNMOON_SMOKE_CODE) {
-      const { pair } = await import('./identity')
-      const paired = await pair(DEFAULT_SERVER, process.env.SUNMOON_SMOKE_CODE)
-      result.pair = paired.ok ? { ok: true, device: paired.device } : paired
-      if (paired.ok) {
-        const screen = paired.device.deviceType === 'POS' ? 'pos' : 'kds'
+    // SUNMOON_SMOKE_DEVICE=매장/장비/종류(POS|KIOSK|KDS_MAIN) 면 설정 화면처럼 등록하고,
+    // 화면이 그 매장·장비로 Device Server 를 부르는지까지 봅니다.
+    if (process.env.SUNMOON_SMOKE_DEVICE) {
+      const { register } = await import('./identity')
+      const [storeId = '', deviceId = '', kind = ''] = process.env.SUNMOON_SMOKE_DEVICE.split('/')
+      const registered = register(DEFAULT_SERVER, storeId, deviceId, kind)
+      result.register = registered
+      if (registered.ok) {
+        const screen = registered.device.deviceType === 'POS' ? 'pos' : 'kds'
         await probe.loadURL(`${ORIGIN}/${screen}/index.html`)
-        result.paired = await probe.webContents.executeJavaScript(`(async () => {
+        result.identity = await probe.webContents.executeJavaScript(`(async () => {
           const id = window.sunmoon.identity.get()
-          const res = await fetch(id.serverUrl + '/orders', { headers: { Authorization: 'Device ' + id.token } })
-          const body = await res.json()
-          return { storeId: id.storeId, deviceId: id.deviceId, tokenLength: id.token.length,
-                   ordersStatus: res.status, ordersOnlyOwnStore: body.every(o => o.storeId === id.storeId) }
+          const res = await fetch(id.serverUrl + '/business-days/status?storeId=' + encodeURIComponent(id.storeId))
+          return { storeId: id.storeId, deviceId: id.deviceId, hasToken: 'token' in id, status: res.status }
         })()`)
-        if (paired.device.deviceType === 'POS') {
+        if (registered.device.deviceType === 'POS') {
           // 화면이 남의 매장·단말을 적어 보내도 main 이 이 기기의 신원으로 바꾸는지.
           result.ledger = await probe.webContents.executeJavaScript(`(async () => {
             const l = window.sunmoon.ledger
@@ -210,7 +210,7 @@ async function smoke(): Promise<void> {
           result.ledgerFile = require('node:fs').existsSync(
             require('node:path').join(app.getPath('userData'), 'ledger.sqlite'))
         }
-        if (paired.device.deviceType === 'KIOSK') {
+        if (registered.device.deviceType === 'KIOSK') {
           await probe.loadURL(startUrl())
           await new Promise((r) => setTimeout(r, 3000))   // 메뉴판을 읽을 시간
           result.kiosk = await probe.webContents.executeJavaScript(`(async () => ({
@@ -231,12 +231,18 @@ async function smoke(): Promise<void> {
             if (!admin) {
               result.kioskEscape = { error: '관리자 창이 안 열렸습니다' }
             } else {
-              await new Promise<void>((r) => admin.webContents.once('did-finish-load', () => r()))
+              // 로컬 페이지라 기다리기 전에 이미 다 읽었을 수 있습니다 — 그러면 이벤트는 다시 오지 않습니다.
+              if (admin.webContents.isLoading()) {
+                await new Promise<void>((r) => admin.webContents.once('did-finish-load', () => r()))
+              }
               const wrong = await admin.webContents.executeJavaScript('window.sunmoon.kioskAdmin.unlock("0000")')
               const right = await admin.webContents.executeJavaScript(
                 `window.sunmoon.kioskAdmin.unlock(${JSON.stringify(process.env.SUNMOON_SMOKE_PIN)})`)
-              const act = await admin.webContents.executeJavaScript('window.sunmoon.kioskAdmin.act("window")')
-              result.kioskEscape = { opened: true, wrong, right, act, adminClosed: adminWindow === null }
+              // act 는 관리자 창을 닫고 나서 답하므로 그 답은 이 창에 오지 않습니다 — 창이
+              // 닫혔는지로 봅니다.
+              void admin.webContents.executeJavaScript('window.sunmoon.kioskAdmin.act("window")').catch(() => undefined)
+              for (let i = 0; i < 30 && adminWindow; i++) await new Promise((r) => setTimeout(r, 100))
+              result.kioskEscape = { opened: true, wrong, right, adminClosed: adminWindow === null }
             }
           }
           if (process.env.SUNMOON_SMOKE_ORDER === '1') {
@@ -261,23 +267,17 @@ async function smoke(): Promise<void> {
               '(async () => ({ pending: (await window.sunmoon.ledger.pending()).length }))()')
           }
         }
-        if (paired.device.deviceType === 'KDS' && paired.device.kdsRole === 'MAIN') {
+        if (registered.device.deviceType === 'KDS' && registered.device.kdsRole === 'MAIN') {
           // 쌓인 라벨을 찍는 길 — 화면이 셸에 작업 번호만 넘기고, 셸이 프린터를 골라 찍고 ack.
           result.labels = await probe.webContents.executeJavaScript(
             'window.sunmoon.printer ? window.sunmoon.printer.queuedLabels() : "no printer bridge"')
         }
-        const { readConfig } = await import('./config')
-        const raw = require('node:fs').readFileSync(
-          require('node:path').join(app.getPath('userData'), 'config.json'), 'utf8')
-        result.tokenOnDiskIsEncrypted = readConfig() !== null && !raw.includes(readConfig()!.token)
       }
     }
     await probe.loadURL(`${ORIGIN}/setup/index.html`)
     result.setup = await probe.webContents.executeJavaScript(
-      `({ title: document.title, hasSetup: typeof window.sunmoon?.setup?.pair === 'function',
-          hasRequire: typeof require !== 'undefined',
-          // 토큰은 찍지 않습니다 — 로그로 새는 자격이 가장 흔한 누출입니다.
-          identity: (() => { const id = window.sunmoon?.identity?.get(); return id ? { ...id, token: '(' + id.token.length + '자)' } : null })() })`)
+      `({ title: document.title, hasSetup: typeof window.sunmoon?.setup?.save === 'function',
+          hasRequire: typeof require !== 'undefined', identity: window.sunmoon?.identity?.get() ?? null })`)
     for (const screen of ['pos', 'kds']) {
       try {
         await probe.loadURL(`${ORIGIN}/${screen}/index.html`)
@@ -318,7 +318,7 @@ if (!app.requestSingleInstanceLock()) {
       // 원장은 처음 쓸 때 엽니다 — KDS-MAIN 셸은 파일을 만들지도 않습니다.
       ledger: () => (ledger ??= new Ledger(path.join(app.getPath('userData'), 'ledger.sqlite'))),
       defaultServerUrl: DEFAULT_SERVER,
-      onPaired: () => window?.loadURL(startUrl()),
+      onConfigured: () => window?.loadURL(startUrl()),
       onForgotten: () => window?.loadURL(`${ORIGIN}/setup/index.html`),
       kiosk: {
         openAdmin,

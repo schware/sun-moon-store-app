@@ -1,50 +1,31 @@
-import { net } from 'electron'
 import { normaliseServerUrl, screenFor, type Device } from './roles'
 import { writeConfig } from './config'
 
+/** 설정 화면에서 고르는 종류 — 셸은 하드웨어가 있는 자리에만 갑니다(ADR-0015). */
+export type Kind = 'POS' | 'KIOSK' | 'KDS_MAIN'
+
 /**
- * 페어링 코드를 기기 토큰으로 (store-app.md §3, §5.1).
- *
- * <p>요청은 <b>main 프로세스</b>가 합니다. 화면(셋업 페이지)은 코드와 서버 주소만
- * 넘기고 토큰은 끝내 보지 않습니다 — 화면에 구멍이 있어도 토큰은 거기 없습니다.
- * (페어링 뒤 화면이 요청에 쓰려고 토큰을 받아 가는 것은 별개이고, 그건 §5.2 대로입니다.)
+ * 설정 화면의 매장·장비·종류를 이 기기의 설정으로 (store-app.md §5.1). 웹 단말의 단말 등록과
+ * 같은 값입니다. 장비가 BO 에 등록돼 있는지는 Device Server 가 연결할 때 확인합니다.
  */
-export async function pair(rawServerUrl: string, code: string): Promise<{ ok: true; device: Device } | { ok: false; error: string }> {
+export function register(rawServerUrl: string, storeId: string, deviceId: string, kind: string):
+    { ok: true; device: Device } | { ok: false; error: string } {
   const serverUrl = normaliseServerUrl(rawServerUrl)
   if (!serverUrl) {
     return { ok: false, error: '서버 주소가 올바르지 않습니다 (예: http://211.217.183.232:8087)' }
   }
-  const digits = code.replace(/\s/g, '')
-  if (!/^[0-9]{6}$/.test(digits)) {
-    return { ok: false, error: '코드는 숫자 6자리입니다' }
+  const store = storeId.trim()
+  const id = deviceId.trim()
+  if (!store || !id) {
+    return { ok: false, error: '매장 ID 와 장비 ID 를 넣으십시오' }
   }
-
-  let res: Response
-  try {
-    res = await net.fetch(`${serverUrl}/pos/pair`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: digits })
-    })
-  } catch (e) {
-    return { ok: false, error: `서버에 연결할 수 없습니다 (${serverUrl})` }
-  }
-  const body = await res.json().catch(() => ({})) as Record<string, unknown>
-  if (!res.ok) {
-    return { ok: false, error: typeof body.error === 'string' ? body.error : `페어링 실패 (${res.status})` }
-  }
-
-  const device: Device = {
-    storeId: String(body.storeId),
-    deviceId: String(body.deviceId),
-    deviceType: String(body.deviceType),
-    kdsRole: body.kdsRole == null ? null : String(body.kdsRole)
-  }
+  const device: Device = kind === 'KDS_MAIN'
+    ? { storeId: store, deviceId: id, deviceType: 'KDS', kdsRole: 'MAIN' }
+    : { storeId: store, deviceId: id, deviceType: kind, kdsRole: null }
   const target = screenFor(device)
   if ('refused' in target) {
-    // 코드는 이미 쓰였습니다(한 번만). BO 에서 맞는 장비의 코드를 새로 받아야 합니다.
-    return { ok: false, error: `${target.refused} (이 코드는 이미 쓰였습니다 — BO 에서 새로 받으십시오)` }
+    return { ok: false, error: target.refused }
   }
-  writeConfig(serverUrl, device, String(body.token))
+  writeConfig(serverUrl, device)
   return { ok: true, device }
 }

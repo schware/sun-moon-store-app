@@ -2,7 +2,7 @@
  * 어느 기기가 이 셸을 쓰고, 어느 화면을 여는가 (umbrella docs/design/store-app.md §5.1).
  *
  * 셸은 <b>하드웨어가 있는 자리</b>에만 갑니다(ADR-0015): POS, KIOSK, KDS-MAIN.
- * KDS SUB 와 DID 는 웹 화면 그대로입니다 — 그런 코드가 셸에 오면 여기서 돌려보냅니다.
+ * KDS SUB 와 DID 는 웹 화면 그대로입니다 — 그런 설정이 셸에 오면 여기서 돌려보냅니다.
  *
  * Electron 을 부르지 않는 순수 함수라 셸 없이 시험합니다.
  */
@@ -26,9 +26,9 @@ export function screenFor(device: Device): { screen: Screen } | { refused: strin
     case 'KDS':
       return device.kdsRole === 'MAIN'
         ? { screen: 'kds' }
-        : { refused: '이 코드는 KDS SUB 용입니다. SUB 는 셸 없이 웹 KDS 화면에서 페어링하십시오.' }
+        : { refused: 'KDS 생산 주방은 셸 없이 웹 KDS 화면에서 엽니다.' }
     case 'DID':
-      return { refused: '이 코드는 DID 용입니다. DID 는 셸 없이 웹 DID 화면에서 페어링하십시오.' }
+      return { refused: 'DID 는 셸 없이 웹 DID 화면에서 엽니다.' }
     default:
       return { refused: `셸이 모르는 단말 종류입니다: ${device.deviceType}` }
   }

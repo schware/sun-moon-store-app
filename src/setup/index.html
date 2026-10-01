@@ -2,29 +2,37 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>SunMoon Store — 기기 페어링</title>
+  <title>SunMoon Store — 단말 등록</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="card">
-    <h1>기기 페어링</h1>
+    <h1>단말 등록</h1>
     <p class="muted">
-      BO <strong>장비</strong> 화면에서 이 기기의 <strong>[코드]</strong> 를 눌러 받은 6자리를 넣으십시오.
-      매장·장비 번호·역할(POS / KDS-MAIN)은 BO 에 적힌 대로 정해집니다.
+      이 PC 가 속한 매장과 장비 ID, 그리고 하는 일을 고르십시오. 웹 단말의 단말 등록과 같은 값입니다.
+      장비는 BO <strong>장비</strong> 화면에 등록돼 있어야 연결됩니다.
     </p>
-    <form id="pair">
-      <label for="code">페어링 코드</label>
-      <input id="code" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000000" autofocus />
+    <form id="register">
+      <label for="kind">하는 일</label>
+      <select id="kind">
+        <option value="POS">POS</option>
+        <option value="KIOSK">KIOSK</option>
+        <option value="KDS_MAIN">KDS 메인</option>
+      </select>
+      <label for="store">매장 ID</label>
+      <input id="store" autocomplete="off" spellcheck="false" placeholder="store-01" autofocus />
+      <label for="device">장비 ID</label>
+      <input id="device" autocomplete="off" spellcheck="false" placeholder="pos-01" />
       <details>
         <summary>서버 주소</summary>
         <input id="server" type="url" spellcheck="false" />
         <p class="muted small">바꿀 일이 거의 없습니다. 도메인이 생기면 이 값이 바뀝니다.</p>
       </details>
       <div id="error" class="error" role="alert" hidden></div>
-      <button id="submit" type="submit">페어링</button>
+      <button id="submit" type="submit">시작</button>
     </form>
     <p class="muted small">
-      KDS SUB 와 DID 는 이 앱이 아니라 웹 화면에서 페어링합니다.
+      KDS 생산 주방과 DID 는 이 앱이 아니라 웹 화면에서 엽니다.
     </p>
   </main>
   <script src="setup.js"></script>
