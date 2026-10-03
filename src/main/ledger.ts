@@ -3,7 +3,7 @@ import { DatabaseSync } from 'node:sqlite'
 /**
  * POS 거래 원장 — SQLite (umbrella docs/adr/0010 2단계, store-app.md §6.1).
  *
- * <p>웹 POS 의 IndexedDB 원장({@code sun-moon-terminal-pos/src/lib/ledger.ts})과
+ * <p>웹 POS 의 IndexedDB 원장({@code sun-moon-terminals/pos/src/lib/ledger.ts})과
  * <b>같은 모양, 같은 규칙</b>입니다. 바뀌는 것은 저장소뿐이고, 그래서 얻는 것은
  * 하나입니다: <b>브라우저 데이터를 지워도 원장이 남습니다.</b>
  *
