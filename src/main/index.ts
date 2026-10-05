@@ -330,8 +330,9 @@ if (!app.requestSingleInstanceLock()) {
         quit: () => app.quit()
       }
     })
-    if (app.isPackaged) {
-      // Windows 로그인 시 자동 시작 (§5.3).
+    // Windows 로그인 시 자동 시작 (§5.3). 점검 모드(SUNMOON_SMOKE=1)는 빼둡니다 — 개발 PC 에서
+    // 포장된 앱을 점검 삼아 한 번 돌렸을 뿐인데 시작 프로그램에 남아, 부팅마다 셸이 떴습니다(2026-10-05).
+    if (app.isPackaged && process.env.SUNMOON_SMOKE !== '1') {
       app.setLoginItemSettings({ openAtLogin: true })
     }
     if (process.env.SUNMOON_SMOKE === '1') {
