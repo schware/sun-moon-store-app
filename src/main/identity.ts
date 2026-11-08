@@ -12,7 +12,7 @@ export function register(rawServerUrl: string, storeId: string, deviceId: string
     { ok: true; device: Device } | { ok: false; error: string } {
   const serverUrl = normaliseServerUrl(rawServerUrl)
   if (!serverUrl) {
-    return { ok: false, error: '서버 주소가 올바르지 않습니다 (예: http://sunmoonwork.duckdns.org:8087)' }
+    return { ok: false, error: '서버 주소가 올바르지 않습니다 (예: http://61.73.134.2:8087)' }
   }
   const store = storeId.trim()
   const id = deviceId.trim()
