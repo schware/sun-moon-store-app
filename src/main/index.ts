@@ -16,7 +16,7 @@ import { contentSecurityPolicy, folderFor, screenFor, urlPrefix } from './roles'
  */
 
 /** ▶ 기본값 서버 주소 (§5.1). 도메인이 생기면 바꿉니다. */
-const DEFAULT_SERVER = process.env.SUNMOON_SERVER ?? 'http://61.73.134.2:8087'
+const DEFAULT_SERVER = process.env.SUNMOON_SERVER ?? 'http://sunmoonwork.duckdns.org:8087'
 const ORIGIN = 'sunmoon://app'
 
 // 화면은 로컬 파일만 엽니다(§2.1). file:// 대신 전용 scheme 을 쓰는 이유: 화면
